@@ -2,7 +2,8 @@
     init: function(elevators, floors) {
         var elevator = elevators[0]; // Let's use the first elevator
         var callList = [];
-        
+        var loop = 0;
+
         function addToRide(floorNum) {
             if(elevator.goingUpIndicator()==true && elevator.goingDownIndicator()==true) {
                 console.log(`[ERROR ADD TO RIDE] ${floorNum}`);
@@ -17,15 +18,31 @@
             }
 
         }
+
+        function isItemInArray(array, item) {
+            for (var i = 0; i < array.length; i++) {
+                // This if statement depends on the format of your array
+                if (array[i][0] == item[0] && array[i][1] == item[1] && array[i][2] == item[2]) {
+                    console.log(`[WARNING Double Call] ${item}`);
+                    return false;   // Found it
+                }
+            }
+            return false;   // Not found
+        }
+        
         function pileCall(floorNum, direction) {
             console.log(`[Pile Call] ${floorNum}${direction} size:${callList.length+1}`);
-            if(direction == "up"){
+            loop ++;
+            if (loop > 1000) {
+                console.log(`loop`);
+            }
+            if(direction == "up" && isItemInArray(callList, [floorNum, 1, 0]) == false){
                 callList.push([floorNum, 1, 0]);
-            } else {
+            } else if(direction == "down" && isItemInArray(callList, [floorNum, 0, 1]) == false) {
                 callList.push([floorNum, 0, 1]);
             }
         }
-        
+
         function registerCall(floorNum, direction) {
             if(elevator.goingUpIndicator()==true && elevator.goingDownIndicator()==true) {
                 if (direction == "up") {
@@ -51,7 +68,7 @@
             }
 
         }
-        
+
         function unpileCall() {
             console.log(`[UnPile]`);
             var nbCall = 0;
@@ -69,7 +86,7 @@
                         }
                         var floorCalling = callList[i][0]
                         callList.splice(i,1);
-                        i--;
+                        if(i>0) {i--};
                         registerCall(floorCalling, "down");
                         nbCall++;
                     }
@@ -89,7 +106,7 @@
                         }
                         var floorCalling = callList[i][0]
                         callList.splice(i,1);
-                        i--;
+                        if(i>0) {i--};
                         registerCall(floorCalling, "up");
                         nbCall++;
                     }
@@ -109,7 +126,7 @@
                         registerCall(floorCalling, "down");
                     }
                 }
-                
+
             }
         }
         // Whenever the elevator is idle (has no more queued destinations) ...
@@ -117,7 +134,7 @@
             // let's go to all the floors (or did we forget one?)
             unpileCall();
         });
-        
+
         elevator.on("floor_button_pressed", function(floorNum) {
             addToRide(floorNum);
             console.log(`[Go To]${floorNum}`);
