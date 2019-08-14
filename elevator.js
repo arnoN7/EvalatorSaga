@@ -1,10 +1,9 @@
 {
     init: function(elevators, floors) {
-        var elevator = elevators[0]; // Let's use the first elevator
         var callList = [];
         var loop = 0;
 
-        function addToRide(floorNum) {
+        function addToRide(floorNum, elevator) {
             if(elevator.goingUpIndicator()==true && elevator.goingDownIndicator()==true) {
                 console.log(`[ERROR ADD TO RIDE] ${floorNum}`);
             } else if (elevator.goingUpIndicator()==true) {
@@ -43,7 +42,7 @@
             }
         }
 
-        function registerCall(floorNum, direction) {
+        function registerCall(floorNum, direction, elevator) {
             if(elevator.goingUpIndicator()==true && elevator.goingDownIndicator()==true) {
                 if (direction == "up") {
                     console.log(`[Will Go UP Called] ${floorNum}`);
@@ -54,43 +53,45 @@
                     elevator.goingUpIndicator(false);
                     console.log(`[Will Go Down Called] ${floorNum}`);
                 }
-                addToRide(floorNum);
+                addToRide(floorNum, elevator);
             } else if (elevator.goingUpIndicator()==true && direction =="up" && 
                        Math.min(elevator.currentFloor(), elevator.destinationQueue[0]) < floorNum) {
                 console.log(`[Opport Catch UP] ${floorNum}`);
-                addToRide(floorNum);     
+                addToRide(floorNum, elevator);     
             } else if (elevator.goingDownIndicator()==true && direction =="down" && 
                        Math.max(elevator.currentFloor(), elevator.destinationQueue[0]) > floorNum) {
                 console.log(`[Opport Catch Down] ${floorNum}`);
-                addToRide(floorNum); 
+                addToRide(floorNum, elevator); 
             } else {
-                pileCall(floorNum, direction);
+                return false;
             }
+            return true;
 
         }
 
-        function unpileCall() {
+        function unpileCall(elevator) {
             console.log(`[UnPile]`);
             var nbCall = 0;
+            var callListCopy;
             //If was going up try to find someone going down
             if(elevator.goingUpIndicator()) {
                 callList.sort(function(a, b) {
                     return b[0] - a[0];
                 });
                 console.log(`Trying to go down`);
-                for (var i = 0; i < callList.length; i++) {
-                    if (callList[i][2] === 1){
+                callListCopy = callList.slice();
+                callListCopy.forEach(function(call, index, object) {
+                    if (call[2] === 1){
                         if(nbCall == 0) {
                             elevator.goingDownIndicator(true);
                             elevator.goingUpIndicator(true);
                         }
-                        var floorCalling = callList[i][0]
-                        callList.splice(i,1);
-                        if(i>0) {i--};
-                        registerCall(floorCalling, "down");
+                        var floorCalling = call[0];
+                        callList.splice(index-nbCall,1);
+                        registerCall(floorCalling, "down", elevator);
                         nbCall++;
                     }
-                }
+                });
             }
             //If was going down try to find someone going up
             if(elevator.goingDownIndicator() && nbCall == 0) {
@@ -98,19 +99,19 @@
                     return a[0] - b[0];
                 });
                 console.log(`Trying to go up`);
-                for (var i = 0; i < callList.length; i++) {
-                    if (callList[i][1] === 1){
+                callListCopy = callList.slice();
+                callListCopy.forEach(function(call, index, object) {
+                    if (call[1] === 1){
                         if(nbCall == 0) {
                             elevator.goingDownIndicator(true);
                             elevator.goingUpIndicator(true);
                         }
-                        var floorCalling = callList[i][0]
-                        callList.splice(i,1);
-                        if(i>0) {i--};
-                        registerCall(floorCalling, "up");
+                        var floorCalling = call[0];
+                        callList.splice(index-nbCall,1);
+                        registerCall(floorCalling, "up", elevator);
                         nbCall++;
                     }
-                }
+                });
             }
             if(nbCall == 0) {
                 elevator.goingDownIndicator(true);
@@ -120,35 +121,56 @@
                     var floorCalling = callList[0][0]
                     if(callList[0][1] ===1) {
                         callList.splice(0,1);
-                        registerCall(floorCalling, "up");
+                        registerCall(floorCalling, "up", elevator);
                     } else {
                         callList.splice(0,1);
-                        registerCall(floorCalling, "down");
+                        registerCall(floorCalling, "down", elevator);
                     }
                 }
 
             }
         }
         // Whenever the elevator is idle (has no more queued destinations) ...
-        elevator.on("idle", function() {
-            // let's go to all the floors (or did we forget one?)
-            unpileCall();
+        elevators.forEach((elevator, index) => {
+            elevator.id = index;
+            elevator.on("idle", function() {
+                // let's go to all the floors (or did we forget one?)
+                unpileCall(elevator);
+            });
+            elevator.on("floor_button_pressed", function(floorNum) {
+                if(addToRide(floorNum, elevator) == false) {
+                    console.log(`[ERROR NO GO Destination] ${floorNum}${elevator}`);
+                } else {
+                    console.log(`[Go To]${floorNum}`);
+                }
+            });
         });
 
-        elevator.on("floor_button_pressed", function(floorNum) {
-            addToRide(floorNum);
-            console.log(`[Go To]${floorNum}`);
-        });
         floors.forEach((floor) => {
             const floorNum = floor.floorNum();
-
             floor.on("up_button_pressed", () => {
                 console.log(`floor${floorNum} [up_button_pressed]`);
-                registerCall(floorNum, "up");
+                var isAccepted = false;
+                var i = 0;
+                while (isAccepted || i == elevators.length) {
+                    isAccepted = registerCall(floorNum, "up", elevators[i]);
+                    i++;
+                }
+                if (!isAccepted) {
+                    pileCall(floorNum, "up");
+                }
             });
             floor.on("down_button_pressed", () => {
                 console.log(`floor${floorNum} [down_button_pressed]`);
-                registerCall(floorNum, "down");
+                var isAccepted = false;
+                var i = 0;
+                while (isAccepted || i == elevators.length) {
+                    isAccepted = registerCall(floorNum, "down", elevators[i]);
+                    i++;
+                }
+                if (!isAccepted) {
+                    pileCall(floorNum, "down");
+                }
             });
         });
     },
