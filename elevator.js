@@ -7,13 +7,18 @@
             floors[i].elevatorUP = -1;
             floors[i].elevatorDOWN = -1;
         }
+        function resetElevator(elevator) {
+            elevator.goingDownIndicator(true);
+            elevator.goingUpIndicator(true);
+            elevator.status = "idle";
+        }
 
         function addToRide(floorNum, elevator) {
             if(elevator.goingUpIndicator()==true && elevator.goingDownIndicator()==true) {
                 console.log(`[ERROR ADD TO RIDE] ${floorNum}`);
             } else if (elevator.goingUpIndicator()==true) {
                 elevator.goToFloor(floorNum);
-                elevator.destinationQueue.sort();
+                elevator.destinationQueue.sort(function(a, b){return a-b});
                 elevator.checkDestinationQueue();
             } else if (elevator.goingDownIndicator()==true) {
                 elevator.goToFloor(floorNum);
@@ -94,6 +99,7 @@
                 registerCall(call.floor, call.direction, elevator);
             }
         }
+        
         function unpileCall(floorNum, direction, elevator) {
             switch (elevator.status) {
                 case 'deliver' :
@@ -102,9 +108,21 @@
                         console.log(`[Error UnPileCall] Direction is not set`);
                     } else if (elevator.goingDownIndicator()) {
                         floors[floorNum].down = false;
+                        if((floors[floorNum].elevatorDOWN != -1) && (floors[floorNum].elevatorDOWN != elevator.id)) {
+                            var resetedElevator = elevators[floors[floorNum].elevatorDOWN];
+                            console.log(`[Reset Elevator] ${resetedElevator.id}`);
+                            resetElevator(resetedElevator);
+                            unpile(resetedElevator);
+                        }
                         floors[floorNum].elevatorDOWN = -1;
                     } else if (elevator.goingUpIndicator()) {
                         floors[floorNum].up = false;
+                        if((floors[floorNum].elevatorUP != -1) && (floors[floorNum].elevatorUP != elevator.id)) {
+                            var resetedElevator = elevators[floors[floorNum].elevatorUP];
+                            console.log(`[Reset Elevator] ${resetedElevator.id}`);
+                            resetElevator(resetedElevator);
+                            unpile(resetedElevator);
+                        }
                         floors[floorNum].elevatorUP = -1;
                     }
                     break;
@@ -121,9 +139,7 @@
             elevator.on("idle", function() {
                 // let's go to all the floors (or did we forget one?)
                 if(elevator.status == "deliver") {
-                    elevator.goingDownIndicator(true);
-                    elevator.goingUpIndicator(true);
-                    elevator.status = "idle";
+                    resetElevator(elevator);
                 }
                 unpile(elevator);
             });
@@ -142,18 +158,18 @@
                         //Opportunity Catch
                         if(elevator.goingDownIndicator() && elevator.goingUpIndicator()) {
                             console.log(`[Error Passing Floor] Direction is not set`);
-                        } else if (elevator.loadFactor() < (1-elevator.personWeigth)) {
+                        } else if (elevator.loadFactor() < (0.85-elevator.personWeigth)) {
                             //Space available in elevator
                             if (elevator.goingDownIndicator() && (floors[floorNum].down == true)) {
                                 //Going Down
                                 if(floors[floorNum].elevatorDOWN == -1 || floors[floorNum].elevatorDOWN == elevator.id) {
-                                    console.log(`Passing Floor Opportunity Catch Down ${floorNum} ${elevator.id}`);
+                                    console.log(`Passing Floor Opportunity Catch Down ${floorNum} ${elevator.id} ${elevator.loadFactor()}`);
                                     addToRide(floorNum, elevator); 
                                 }
                             } else if (elevator.goingUpIndicator() && (floors[floorNum].up == true)) {
                                 //Going Up
                                 if(floors[floorNum].elevatorUP == -1 || floors[floorNum].elevatorUP == elevator.id) {
-                                    console.log(`Passing Floor Opportunity Catch Up ${floorNum} ${elevator.id}`);
+                                    console.log(`Passing Floor Opportunity Catch Up ${floorNum} ${elevator.id} {elevator.loadFactor()}`);
                                     addToRide(floorNum, elevator); 
                                 }
                             } else {
@@ -167,8 +183,7 @@
             });
             elevator.on("stopped_at_floor", (floorNum, direction) => {
                 //console.log(`Stopped Floor ${floorNum} ${direction} ${elevator.id}`);
-                unpileCall(floorNum, direction, elevator);
-                
+                unpileCall(floorNum, direction, elevator);                
             });
         });
 
