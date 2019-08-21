@@ -1,6 +1,8 @@
 {
     init: function(elevators, floors) {
         var loop = 0;
+        var callCount = 0;
+        console.clear();
         for(var i = 0; i < floors.length; i++) {
             floors[i].up = false;
             floors[i].down = false;
@@ -28,16 +30,18 @@
 
         }
         
-        function pileCall(floorNum, direction) {
+        function pileCall(floorNum, direction, callCount) {
             console.log(`[Pile Call] ${floorNum}${direction}`);
             loop ++;
             if (loop > 1000) {
                 console.log(`loop`);
-            }
+            }            
             if(direction === "up") {
                 floors[floorNum].up = true;
+                floors[floorNum].callCountUP = callCount;
             } else if (direction === "down") {
                 floors[floorNum].down = true;
+                floors[floorNum].callCountDOWN = callCount;
             }
         }
 
@@ -78,25 +82,21 @@
 
         function unpile(elevator) {
             console.log(`[UnPile]`);
-            var distance = floors.length + 1;
             var call = new Object();
-            for (var i= 0; i < floors.length; i++) {
-                if((floors[i].elevatorDOWN == -1) && (floors[i].down == true) 
-                   || (floors[i].elevatorUP == -1) && (floors[i].up == true)) {
-                    if( Math.abs(elevator.currentFloor() - i) < distance) {
-                        distance = Math.abs(elevator.currentFloor() - i);
-                        call.floor = i;
-                        if(floors[i].up) {
-                            call.direction = "up";
-                        } else {
-                            call.direction = "down";
-                        }
-                    }
-                    
+            var floorMaxDOWN = Math.max.apply(Math,floors.map(function(o){ if((o.elevatorDOWN==-1) && (o.down == true))  {return floors.indexOf(o);} else {return -2*floors.length;}}));
+            var floorMinUP = Math.min.apply(Math,floors.map(function(o){ if((o.elevatorUP==-1) && (o.up == true)) {return floors.indexOf(o);} else {return 2*floors.length;}}));
+            if(Math.abs(elevator.currentFloor() - floorMaxDOWN) < Math.abs(elevator.currentFloor() - floorMinUP)) {
+                if (floorMaxDOWN < floors.length && floorMaxDOWN >= 0) {
+                    registerCall(floorMaxDOWN, "down", elevator);
+                } else {
+                    console.log(`[UNPILE] Nothing to do ${elevator.id}`);
                 }
-            }
-            if(distance < floors.length + 1) {
-                registerCall(call.floor, call.direction, elevator);
+            } else {
+                if (floorMinUP >= 0 && floorMinUP < floors.length) {
+                    registerCall(floorMinUP, "up", elevator);
+                } else {
+                    console.log(`[UNPILE] Nothing to do ${elevator.id}`);
+                }
             }
         }
         
@@ -115,6 +115,7 @@
                             unpile(resetedElevator);
                         }
                         floors[floorNum].elevatorDOWN = -1;
+                        floors[floorNum].callCountDOWN = -1;
                     } else if (elevator.goingUpIndicator()) {
                         floors[floorNum].up = false;
                         if((floors[floorNum].elevatorUP != -1) && (floors[floorNum].elevatorUP != elevator.id)) {
@@ -124,6 +125,7 @@
                             unpile(resetedElevator);
                         }
                         floors[floorNum].elevatorUP = -1;
+                        floors[floorNum].callCountUP = -1;
                     }
                     break;
                 case 'idle' :
@@ -190,6 +192,7 @@
         floors.forEach((floor) => {
             const floorNum = floor.floorNum();
             floor.on("up_button_pressed", () => {
+                callCount ++;
                 console.log(`floor${floorNum} [up_button_pressed]`);
                 var isAccepted = false;
                 var i = 0;
@@ -199,9 +202,10 @@
                     }
                     i++;
                 }
-                pileCall(floorNum, "up");
+                pileCall(floorNum, "up", callCount);
             });
             floor.on("down_button_pressed", () => {
+                callCount ++;
                 console.log(`floor${floorNum} [down_button_pressed]`);
                 var isAccepted = false;
                 var i = 0;
@@ -211,7 +215,7 @@
                     }
                     i++;
                 }
-                pileCall(floorNum, "down");
+                pileCall(floorNum, "down", callCount);
             });
 
         });
